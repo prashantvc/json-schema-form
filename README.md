@@ -1,5 +1,11 @@
 # Sample application that shows how to geneate the UI based on the schema
 
+## What you can do?
+
+- Search or filter fields
+- Change languages
+- Show validation errors
+
 ## Available Scripts
 
 In the project directory, you can run:

@@ -1,282 +1,170 @@
 import React, { useState } from "react";
+import schema from "./schema";
 
-// ----- Example schema (from above) -----
-const schema = {
-	$schema: "https://awl.co.jp/schema/v1/setting_schema.json",
-	type: "object",
-	propertyOrder: ["loginCredentials", "colors", "signature", "rememberMe"],
-	properties: {
-		loginCredentials: {
-			title: { en: "Login Credentials" },
-			description: { en: "Please enter user credentials" },
-			type: "object",
-			"x-ui-type": "group",
-			properties: {
-				username: {
-					title: { en: "Username" },
-					type: "string",
-					"x-ui-type": "text",
-					default: "",
-				},
-				password: {
-					title: { en: "Password" },
-					type: "string",
-					"x-ui-type": "password",
-				},
-			},
-		},
-		colors: {
-			title: { en: "Favorite Colors" },
-			description: { en: "Pick some colors you like" },
-			type: "array",
-			"x-ui-type": "list",
-			items: {
-				type: "string",
-			},
-		},
-		signature: {
-			title: { en: "Signature" },
-			description: { en: "Draw your signature below" },
-			type: "array",
-			"x-ui-type": "draw",
-			items: {
-				type: "array",
-				items: { type: "number" },
-				minItems: 2,
-				maxItems: 2,
-			},
-		},
-		rememberMe: {
-			title: { en: "Remember Me" },
-			type: "boolean",
-			"x-ui-type": "checkbox",
-			default: false,
-		},
-	},
-	required: ["loginCredentials"],
-};
-
-// ----- A small helper to get the localized string (assuming 'en' fallback) -----
 function getLocalizedText(obj, lang = "en") {
 	if (!obj) return "";
 	if (typeof obj === "string") return obj;
 	return obj[lang] || Object.values(obj)[0] || "";
 }
 
-// ----- Canvas for "draw" type -----
 function DrawCanvas({ value, onChange, title, description }) {
 	const [points, setPoints] = useState(value || []);
-
 	const canvasRef = React.useRef(null);
 	const [drawing, setDrawing] = useState(false);
 
-	// Draw the existing points whenever 'points' changes
 	React.useEffect(() => {
 		if (!canvasRef.current) return;
 		const ctx = canvasRef.current.getContext("2d");
-		// Clear
 		ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-		// Redraw
 		if (points.length > 0) {
 			ctx.beginPath();
 			ctx.moveTo(points[0][0], points[0][1]);
-			for (let i = 1; i < points.length; i++) {
-				ctx.lineTo(points[i][0], points[i][1]);
-			}
+			points.forEach(([x, y]) => ctx.lineTo(x, y));
 			ctx.stroke();
-			ctx.closePath();
 		}
 	}, [points]);
 
-	// Helper to get mouse position
-	const getPos = (e) => {
-		const rect = canvasRef.current.getBoundingClientRect();
-		return [e.clientX - rect.left, e.clientY - rect.top];
-	};
-
-	const startDrawing = (e) => {
+	const handleMouseDown = (e) => {
 		setDrawing(true);
-		const newPoint = getPos(e);
-		setPoints((prev) => [...prev, newPoint]);
+		const rect = canvasRef.current.getBoundingClientRect();
+		setPoints([...points, [e.clientX - rect.left, e.clientY - rect.top]]);
 	};
 
-	const draw = (e) => {
+	const handleMouseMove = (e) => {
 		if (!drawing) return;
-		const newPoint = getPos(e);
-		setPoints((prev) => [...prev, newPoint]);
+		const rect = canvasRef.current.getBoundingClientRect();
+		setPoints([...points, [e.clientX - rect.left, e.clientY - rect.top]]);
 	};
 
-	const stopDrawing = () => {
+	const handleMouseUp = () => {
 		setDrawing(false);
-		// Send updated points back to parent
 		onChange(points);
 	};
 
-	const clear = () => {
-		setPoints([]);
-		onChange([]);
-	};
-
 	return (
-		<div style={{ marginBottom: "1em" }}>
-			<label style={{ fontWeight: "bold" }}>{title}</label>
-			<div style={{ fontSize: "smaller", marginBottom: "0.5em" }}>{description}</div>
-
+		<div>
+			<h3>{title}</h3>
+			<p>{description}</p>
 			<canvas
 				ref={canvasRef}
 				width={400}
 				height={200}
-				style={{ border: "1px solid #ccc" }}
-				onMouseDown={startDrawing}
-				onMouseMove={draw}
-				onMouseUp={stopDrawing}
-				onMouseLeave={stopDrawing}
+				style={{ border: "1px solid black" }}
+				onMouseDown={handleMouseDown}
+				onMouseMove={handleMouseMove}
+				onMouseUp={handleMouseUp}
 			/>
-			<div style={{ marginTop: "0.5em" }}>
-				<button type="button" onClick={clear}>
-					Clear
-				</button>
-			</div>
 		</div>
 	);
 }
 
-// ----- Renderer for a single property -----
-function RenderProperty({ propName, schemaProp, value, onChange }) {
-	const title = getLocalizedText(schemaProp.title, "en");
-	const description = getLocalizedText(schemaProp.description, "en");
-	const xUiType = schemaProp["x-ui-type"];
-	const type = schemaProp.type;
-
-	// Handle "group" (object)
-	if (xUiType === "group" && type === "object") {
-		// Recursively render sub-properties
-		const properties = schemaProp.properties || {};
-		const propertyOrder = schemaProp.propertyOrder || Object.keys(properties);
-		return (
-			<fieldset style={{ marginBottom: "1em" }}>
-				<legend style={{ fontWeight: "bold" }}>{title}</legend>
-				{description && <div style={{ fontSize: "smaller", marginBottom: "0.5em" }}>{description}</div>}
-				{propertyOrder.map((subKey) => (
-					<RenderProperty
-						key={subKey}
-						propName={subKey}
-						schemaProp={properties[subKey]}
-						value={value[subKey]}
-						onChange={(val) => {
-							onChange({
-								...value,
-								[subKey]: val,
-							});
-						}}
-					/>
-				))}
-			</fieldset>
-		);
+function validate(value, schemaProp) {
+	if (schemaProp.type === "string") {
+		if (schemaProp.minLength && value.length < schemaProp.minLength) {
+			return `Minimum length is ${schemaProp.minLength}`;
+		}
+		if (schemaProp.maxLength && value.length > schemaProp.maxLength) {
+			return `Maximum length is ${schemaProp.maxLength}`;
+		}
 	}
+	return null;
+}
 
-	// Handle "text" or "textarea" or "password" (string)
-	if ((xUiType === "text" || xUiType === "textarea" || xUiType === "password") && type === "string") {
-		const isTextArea = xUiType === "textarea";
-		const inputType = xUiType === "password" ? "password" : "text";
+function RenderProperty({ propName, schemaProp, value, onChange, lang }) {
+	const title = getLocalizedText(schemaProp.title, lang);
+	const description = getLocalizedText(schemaProp.description, lang);
+	const [error, setError] = useState(null);
 
-		return (
-			<div style={{ marginBottom: "1em" }}>
-				<label style={{ display: "block", fontWeight: "bold" }}>{title}</label>
-				{description && <div style={{ fontSize: "smaller", marginBottom: "0.25em" }}>{description}</div>}
-				{isTextArea ? (
-					<textarea
-						value={value || ""}
-						onChange={(e) => onChange(e.target.value)}
-						rows={4}
-						style={{ width: "100%", maxWidth: "400px" }}
-					/>
-				) : (
+	const handleChange = (val) => {
+		const validationError = validate(val, schemaProp);
+		setError(validationError);
+		onChange(val);
+	};
+
+	switch (schemaProp["x-ui-type"]) {
+		case "text":
+			return (
+				<div className="form-group card">
+					<label>{title}</label>
 					<input
-						type={inputType}
+						type="text"
 						value={value || ""}
-						onChange={(e) => onChange(e.target.value)}
-						style={{ width: "100%", maxWidth: "400px" }}
+						onChange={(e) => handleChange(e.target.value)}
+						className="form-control"
 					/>
-				)}
-			</div>
-		);
-	}
-
-	// Handle "checkbox" (boolean)
-	if (xUiType === "checkbox" && type === "boolean") {
-		return (
-			<div style={{ marginBottom: "1em" }}>
-				<label>
-					<input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} /> {title}
-				</label>
-				{description && <div style={{ fontSize: "smaller" }}>{description}</div>}
-			</div>
-		);
-	}
-
-	// Handle "list" (array of simple type)
-	if (xUiType === "list" && type === "array") {
-		const items = value || [];
-		return (
-			<div style={{ marginBottom: "1em" }}>
-				<label style={{ fontWeight: "bold" }}>{title}</label>
-				{description && <div style={{ fontSize: "smaller", marginBottom: "0.25em" }}>{description}</div>}
-				{items.map((itemVal, idx) => (
-					<div key={idx} style={{ marginBottom: "0.25em" }}>
+					<p className="form-text">{description}</p>
+					{error && <p className="form-error">{error}</p>}
+				</div>
+			);
+		case "password":
+			return (
+				<div className="form-group card">
+					<label>{title}</label>
+					<input
+						type="password"
+						value={value || ""}
+						onChange={(e) => handleChange(e.target.value)}
+						className="form-control"
+					/>
+					<p className="form-text">{description}</p>
+					{error && <p className="form-error">{error}</p>}
+				</div>
+			);
+		case "list":
+			return (
+				<div className="form-group card">
+					<label>{title}</label>
+					{(value || []).map((item, index) => (
 						<input
+							key={index}
 							type="text"
-							value={itemVal}
+							value={item}
 							onChange={(e) => {
-								const newItems = [...items];
-								newItems[idx] = e.target.value;
-								onChange(newItems);
+								const newValue = [...value];
+								newValue[index] = e.target.value;
+								handleChange(newValue);
 							}}
-							style={{ width: "300px" }}
+							className="form-control"
+							style={{ marginBottom: "0.5em" }}
 						/>
-						<button
-							type="button"
-							onClick={() => {
-								const newItems = items.filter((_, i) => i !== idx);
-								onChange(newItems);
-							}}
-							style={{ marginLeft: "5px" }}
-						>
-							Remove
-						</button>
-					</div>
-				))}
-				<button type="button" onClick={() => onChange([...items, ""])}>
-					Add Item
-				</button>
-			</div>
-		);
+					))}
+					<button
+						type="button"
+						className="btn btn-secondary"
+						onClick={() => handleChange([...(value || []), ""])}
+					>
+						Add Color
+					</button>
+					<p className="form-text">{description}</p>
+					{error && <p className="form-error">{error}</p>}
+				</div>
+			);
+		case "draw":
+			return (
+				<div className="form-group card">
+					<DrawCanvas value={value} onChange={handleChange} title={title} description={description} />
+				</div>
+			);
+		case "checkbox":
+			return (
+				<div className="form-group form-check card">
+					<input
+						type="checkbox"
+						checked={value || false}
+						onChange={(e) => handleChange(e.target.checked)}
+						className="form-check-input"
+					/>
+					<label className="form-check-label">{title}</label>
+					<p className="form-text">{description}</p>
+					{error && <p className="form-error">{error}</p>}
+				</div>
+			);
+		default:
+			return null;
 	}
-
-	// Handle "draw" (array of [x,y] coordinates)
-	if (xUiType === "draw" && type === "array") {
-		return (
-			<DrawCanvas
-				title={title}
-				description={description}
-				value={value}
-				onChange={(newPoints) => onChange(newPoints)}
-			/>
-		);
-	}
-
-	// If no known type, just render a placeholder
-	return (
-		<div style={{ marginBottom: "1em", color: "red" }}>
-			<strong>Unsupported field:</strong> {propName} ({xUiType}, {type})
-		</div>
-	);
 }
 
-// ----- Main Form component -----
-function FormRenderer({ schema, onSubmit }) {
-	// Initialize formData with defaults, if present.
-	// We'll do a quick "walk" of the schema to gather default values.
+function FormRenderer({ schema, onSubmit, lang }) {
 	const buildInitialData = React.useCallback((sch) => {
 		if (!sch || sch.type !== "object" || !sch.properties) return {};
 		const data = {};
@@ -286,10 +174,8 @@ function FormRenderer({ schema, onSubmit }) {
 			if (prop.default !== undefined) {
 				data[key] = prop.default;
 			} else if (prop.type === "object" && prop["x-ui-type"] === "group") {
-				// Recursively fill child defaults
 				data[key] = buildInitialData(prop);
 			} else if (prop.type === "array") {
-				// If there's a default array, use it; otherwise empty
 				data[key] = prop.default || [];
 			} else {
 				data[key] = undefined;
@@ -299,11 +185,8 @@ function FormRenderer({ schema, onSubmit }) {
 	}, []);
 
 	const [formData, setFormData] = useState(() => buildInitialData(schema));
+	const [searchTerm, setSearchTerm] = useState("");
 
-	// Because the user might add items in lists or draw on canvas,
-	// we'll store everything dynamically in the state.
-
-	// A helper function to handle top-level property changes
 	const handlePropertyChange = (propName, val) => {
 		setFormData((prev) => ({
 			...prev,
@@ -311,7 +194,6 @@ function FormRenderer({ schema, onSubmit }) {
 		}));
 	};
 
-	// Render all top-level properties in order
 	const properties = schema.properties || {};
 	const order = schema.propertyOrder || Object.keys(properties);
 
@@ -320,34 +202,95 @@ function FormRenderer({ schema, onSubmit }) {
 		onSubmit(formData);
 	};
 
+	const filterProperties = (props, term) => {
+		const filteredProps = {};
+		for (let key of Object.keys(props)) {
+			const prop = props[key];
+			const title = getLocalizedText(prop.title, lang).toLowerCase();
+			const description = getLocalizedText(prop.description, lang).toLowerCase();
+			if (title.includes(term.toLowerCase()) || description.includes(term.toLowerCase())) {
+				filteredProps[key] = prop;
+			} else if (prop.type === "object" && prop["x-ui-type"] === "group") {
+				const nestedFilteredProps = filterProperties(prop.properties, term);
+				if (Object.keys(nestedFilteredProps).length > 0) {
+					filteredProps[key] = { ...prop, properties: nestedFilteredProps };
+				}
+			}
+		}
+		return filteredProps;
+	};
+
+	const filteredProperties = filterProperties(properties, searchTerm);
+
 	return (
 		<form onSubmit={handleSubmit}>
-			{order.map((key) => (
-				<RenderProperty
-					key={key}
-					propName={key}
-					schemaProp={properties[key]}
-					value={formData[key]}
-					onChange={(val) => handlePropertyChange(key, val)}
+			<div style={{ marginBottom: "1em" }}>
+				<input
+					type="text"
+					placeholder="Filter fields"
+					value={searchTerm}
+					onChange={(e) => setSearchTerm(e.target.value)}
+					className="form-control"
 				/>
-			))}
-
-			<button type="submit">Submit</button>
+			</div>
+			{Object.keys(filteredProperties).map((key) => {
+				const prop = filteredProperties[key];
+				if (prop.type === "object" && prop["x-ui-type"] === "group") {
+					return (
+						<div key={key} className="card">
+							<h3>{getLocalizedText(prop.title, lang)}</h3>
+							<p>{getLocalizedText(prop.description, lang)}</p>
+							{Object.keys(prop.properties).map((subKey) => (
+								<RenderProperty
+									key={subKey}
+									propName={subKey}
+									schemaProp={prop.properties[subKey]}
+									value={formData[key]?.[subKey]}
+									onChange={(val) =>
+										handlePropertyChange(key, {
+											...formData[key],
+											[subKey]: val,
+										})
+									}
+									lang={lang}
+								/>
+							))}
+						</div>
+					);
+				}
+				return (
+					<RenderProperty
+						key={key}
+						propName={key}
+						schemaProp={prop}
+						value={formData[key]}
+						onChange={(val) => handlePropertyChange(key, val)}
+						lang={lang}
+					/>
+				);
+			})}
+			<button type="submit" className="btn btn-primary">
+				Submit
+			</button>
 		</form>
 	);
 }
 
-// ----- App root: usage example -----
 function App() {
-	const handleFormSubmit = (data) => {
-		console.log("Form submitted with data:", data);
-		alert("Check the console for submitted data!");
+	const [lang, setLang] = useState("en");
+
+	const toggleLanguage = () => {
+		setLang((prevLang) => (prevLang === "en" ? "ja" : "en"));
 	};
 
 	return (
-		<div style={{ margin: "2em" }}>
-			<h1>JSON Schema Form Example</h1>
-			<FormRenderer schema={schema} onSubmit={handleFormSubmit} />
+		<div className="container">
+			<div style={{ textAlign: "right", padding: "1em" }}>
+				<button onClick={toggleLanguage} className="btn btn-primary">
+					{lang === "en" ? "English" : "Japanese"}
+				</button>
+			</div>
+			<FormRenderer schema={schema} onSubmit={(data) => console.log(data)} lang={lang} />
 		</div>
 	);
 }
