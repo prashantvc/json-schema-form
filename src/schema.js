@@ -33,9 +33,9 @@ const schema = {
 				type: "string",
 			},
 		},
-		signature: {
-			title: { en: "Signature", ja: "署名" },
-			description: { en: "Draw your signature below", ja: "以下に署名を描いてください" },
+		roi: {
+			title: { en: "Region of Interest", ja: "関心のある地域" },
+			description: { en: "Draw ROI", ja: "関心領域の描画" },
 			type: "array",
 			"x-ui-type": "draw",
 			items: {

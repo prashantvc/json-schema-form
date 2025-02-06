@@ -1,0 +1,29 @@
+.draw-canvas-container {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.canvas-and-listbox {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+}
+
+.draw-canvas {
+	border: 1px solid #000;
+	background-color: white;
+	margin-right: 20px;
+	margin-bottom: 10px;
+}
+
+.drawings-listbox {
+	display: flex;
+	flex-direction: column;
+}
+
+.controls {
+	display: flex;
+	gap: 10px;
+	margin-top: 10px;
+}

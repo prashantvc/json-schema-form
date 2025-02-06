@@ -1,61 +1,11 @@
 import React, { useState } from "react";
 import schema from "./schema";
+import DrawCanvas from "./DrawCanvas"; // Import the DrawCanvas component
 
 function getLocalizedText(obj, lang = "en") {
 	if (!obj) return "";
 	if (typeof obj === "string") return obj;
 	return obj[lang] || Object.values(obj)[0] || "";
-}
-
-function DrawCanvas({ value, onChange, title, description }) {
-	const [points, setPoints] = useState(value || []);
-	const canvasRef = React.useRef(null);
-	const [drawing, setDrawing] = useState(false);
-
-	React.useEffect(() => {
-		if (!canvasRef.current) return;
-		const ctx = canvasRef.current.getContext("2d");
-		ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-		if (points.length > 0) {
-			ctx.beginPath();
-			ctx.moveTo(points[0][0], points[0][1]);
-			points.forEach(([x, y]) => ctx.lineTo(x, y));
-			ctx.stroke();
-		}
-	}, [points]);
-
-	const handleMouseDown = (e) => {
-		setDrawing(true);
-		const rect = canvasRef.current.getBoundingClientRect();
-		setPoints([...points, [e.clientX - rect.left, e.clientY - rect.top]]);
-	};
-
-	const handleMouseMove = (e) => {
-		if (!drawing) return;
-		const rect = canvasRef.current.getBoundingClientRect();
-		setPoints([...points, [e.clientX - rect.left, e.clientY - rect.top]]);
-	};
-
-	const handleMouseUp = () => {
-		setDrawing(false);
-		onChange(points);
-	};
-
-	return (
-		<div>
-			<h3>{title}</h3>
-			<p>{description}</p>
-			<canvas
-				ref={canvasRef}
-				width={400}
-				height={200}
-				style={{ border: "1px solid black" }}
-				onMouseDown={handleMouseDown}
-				onMouseMove={handleMouseMove}
-				onMouseUp={handleMouseUp}
-			/>
-		</div>
-	);
 }
 
 function validate(value, schemaProp) {
